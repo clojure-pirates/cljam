@@ -15,7 +15,7 @@
 ;; VCFReader
 ;; ---------
 
-(declare read-variants read-variants-randomly)
+(declare read-variants read-variants-randomly read-file-offsets)
 
 (deftype VCFReader [url meta-info header reader index-delay]
   Closeable
@@ -46,7 +46,9 @@
     ([this] (protocols/read-variants this {}))
     ([this option] (read-variants this option)))
   (read-variants-randomly [this region-option deep-option]
-    (read-variants-randomly this region-option  deep-option)))
+    (read-variants-randomly this region-option  deep-option))
+  (read-file-offsets [this]
+    (read-file-offsets this)))
 
 ;; Utilities
 ;; ---------
@@ -223,3 +225,28 @@
                     (<= pos end)
                     (<= start (get info :END (dec (+ pos (count ref))))))))))
      spans)))
+
+(defn read-file-offsets [^VCFReader rdr]
+  "Reading bgzip compressed VCF and returning position,chrom,beg,end."
+  (let [^BGZFInputStream input-stream (.reader rdr)]
+    (loop [file-ptr' 0
+           res '()]
+      (if-let [line (.readLine input-stream)]
+        (if (or (meta-line? line) (header-line? line))
+          (recur (.getFilePointer input-stream) res)
+          (let [file-ptr (.getFilePointer input-stream)
+                fields (->> (.split ^String line "\t")
+                            LazilyPersistentVector/createOwning
+                            (map dot->nil)
+                            (take 4))
+                beg (as-long (nth fields 1))
+                end (+ (as-long (nth fields 1)) (count (nth fields 3)))
+                chr (first fields)]
+            (recur file-ptr
+                   (cons {:file-beg file-ptr'
+                          :file-end file-ptr
+                          :beg beg
+                          :end end
+                          :chr chr}
+                         res))))
+        (reverse res)))))

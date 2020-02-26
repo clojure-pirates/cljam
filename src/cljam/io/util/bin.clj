@@ -1,8 +1,6 @@
 (ns cljam.io.util.bin
   (:require [cljam.io.util.chunk :as util-chunk]))
 
-(def ^:const linear-index-shift 14)
-
 (defn- reg->bins*
   "Returns candidate bins for the specified region as a vector."
   [^long beg ^long end ^long min-shift ^long depth]
@@ -59,3 +57,25 @@
         min-offset (get-min-offset index-data ref-idx beg)]
     (->> (util-chunk/optimize-chunks chunks min-offset)
          (map vals))))
+
+(defn reg->bin [^long beg ^long end ^long min-shift ^long depth]
+  "Calculates bin given an alignment covering [beg,end)
+   (zero-based, half-close-half-open)"
+  (let [max-pos (bit-shift-left 1 (+ min-shift (* 3 depth)))
+        beg (if (<= beg 0) 0 (min (dec beg) max-pos))
+        end (if (<= end 0) max-pos (min end max-pos))]
+    (loop [l 0]
+      (let [s (+ min-shift (* l 3))]
+        (cond
+          (= (bit-shift-right beg s)
+             (bit-shift-right end
+                              s)) (+ (-> (dec (bit-shift-left 1 (* depth 3)))
+                                         (quot 7))
+                                     (->> (range l)
+                                          (map #(bit-shift-left
+                                                 1 (* (- depth (inc %)) 3)))
+                                          (apply +)
+                                          -)
+                                     (bit-shift-right beg s))
+          (< l depth) (recur (inc l))
+          :default 0)))))

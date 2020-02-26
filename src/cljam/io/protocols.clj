@@ -52,7 +52,9 @@
   (read-variants [this] [this option]
     "Reads variants of the VCF/BCF file, returning them as a lazy sequence.")
   (read-variants-randomly [this region-option depth-option]
-    "Reads randomly variants of the VCF/BCF file, returning them as a lazy sequence."))
+    "Reads randomly variants of the VCF/BCF file, returning them as a lazy sequence.")
+  (read-file-offsets [rdr]
+    "Reads file-offsets of VCF/BCF file"))
 
 (defprotocol IVariantWriter
   (write-variants [this variants]

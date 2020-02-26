@@ -57,3 +57,9 @@
     2 72
     3 584
     5 37448))
+
+(deftest reg->bin-test
+  (= (util-bin/reg->bin 1 1 14 6) 37449)
+  (= (util-bin/reg->bin 1 1 14 7) 299593)
+  (= (util-bin/reg->bin 1 32769 15 6) 4681)
+  (= (util-bin/reg->bin 1 2 0 2) 10))

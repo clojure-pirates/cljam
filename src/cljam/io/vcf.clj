@@ -6,6 +6,8 @@
             [cljam.util :as util]
             [cljam.io.protocols :as protocols]
             [cljam.io.util :as io-util]
+            [cljam.io.util.bin :as util-bin]
+            [cljam.io.util.chunk :as chunk]
             [cljam.io.vcf.reader :as vcf-reader]
             [cljam.io.vcf.writer :as vcf-writer]
             [cljam.io.bcf.reader :as bcf-reader]
@@ -87,6 +89,54 @@
     rdr
     span-option
     depth-option)))
+
+(defn- calc-bidx [file-offsets shift depth]
+  (->> file-offsets
+       (map #(assoc %
+                    :bin (util-bin/reg->bin (:beg %)
+                                            (:end %) shift depth)))
+       (reduce (fn [res offset]
+                 (if (and (= (:bin (first res)) (:bin offset))
+                          (= (:file-end (first res)) (:file-beg offset)))
+                   (cons (assoc (first res) :file-end (:file-end offset))
+                         (next res))
+                   (cons offset res)))
+               nil)
+       (group-by :bin)
+       (map (fn [[bin offsets]]
+              [bin (->> offsets
+                        (map #(chunk/->Chunk (:file-beg %) (:file-end %)))
+                        reverse)]))
+       sort
+       (into {})))
+
+(defn- calc-loffsets [begs file-offsets depth]
+  (->> begs
+       (map (fn [beg]
+              [beg (->> (drop-while #(< (:end %) beg) file-offsets)
+                        (map #(:file-beg %))
+                        first)]))
+       (into {})))
+
+(defn read-file-index [rdr shift depth]
+  "Reading file offsets from vcf/bcf and
+   make shaped index data for CSI index file."
+  (let [file-offsets (partition-by :chr
+                                   (protocols/read-file-offsets rdr))
+        bidx (->> file-offsets
+                  (map #(calc-bidx % shift depth))
+                  (map-indexed vector)
+                  (into {}))
+        loffsets (->> (range (count file-offsets))
+                      (map (fn [chr]
+                             [chr
+                              (calc-loffsets
+                               (map #(util-bin/bin-beg % shift depth)
+                                    (keys (get bidx chr)))
+                               (nth file-offsets chr)
+                               depth)]))
+                      (into {}))]
+    [bidx loffsets]))
 
 ;; Writing
 ;; -------
