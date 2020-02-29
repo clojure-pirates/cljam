@@ -1,10 +1,13 @@
 (ns cljam.io.util.bin
   (:require [cljam.io.util.chunk :as util-chunk]))
 
+(defn max-pos ^long [^long min-shift ^long depth]
+  (bit-shift-left 1 (+ min-shift (* 3 depth))))
+
 (defn- reg->bins*
   "Returns candidate bins for the specified region as a vector."
   [^long beg ^long end ^long min-shift ^long depth]
-  (let [max-pos (bit-shift-left 1 (+ min-shift (* 3 depth)))
+  (let [max-pos (max-pos min-shift depth)
         beg (if (<= beg 0) 0 (min (dec beg) max-pos))
         end (if (<= end 0) max-pos (min end max-pos))]
     (into [0]
@@ -58,24 +61,21 @@
     (->> (util-chunk/optimize-chunks chunks min-offset)
          (map vals))))
 
-(defn reg->bin [^long beg ^long end ^long min-shift ^long depth]
-  "Calculates bin given an alignment covering [beg,end)
-   (zero-based, half-close-half-open)"
-  (let [max-pos (bit-shift-left 1 (+ min-shift (* 3 depth)))
-        beg (if (<= beg 0) 0 (min (dec beg) max-pos))
-        end (if (<= end 0) max-pos (min end max-pos))]
-    (loop [l 0]
-      (let [s (+ min-shift (* l 3))]
-        (cond
-          (= (bit-shift-right beg s)
-             (bit-shift-right end
-                              s)) (+ (-> (dec (bit-shift-left 1 (* depth 3)))
-                                         (quot 7))
-                                     (->> (range l)
-                                          (map #(bit-shift-left
-                                                 1 (* (- depth (inc %)) 3)))
-                                          (apply +)
-                                          -)
-                                     (bit-shift-right beg s))
-          (< l depth) (recur (inc l))
-          :default 0)))))
+
+(defn leading-bins-at-level
+  ^long [^long pos ^long level ^long min-shift ^long depth]
+  (unsigned-bit-shift-right pos (+ min-shift (* (- depth level) 3))))
+
+(defn reg->bin
+  "Calculates bin given an alignment covering [beg, end]"
+  ^long [^long beg ^long end ^long min-shift ^long depth]
+  (let [max-pos (max-pos min-shift depth)
+        beg (Math/min max-pos (Math/max 0 (dec beg)))
+        end (Math/min max-pos (Math/max 0 end))]
+    (loop [level depth]
+      (if-not (neg? level)
+        (let [beg-bins (leading-bins-at-level beg level min-shift depth)]
+          (if (= beg-bins (leading-bins-at-level end level min-shift depth))
+            (+ (first-bin-of-level level) beg-bins)
+            (recur (dec level))))
+        0))))

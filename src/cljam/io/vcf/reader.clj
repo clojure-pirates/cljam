@@ -226,27 +226,36 @@
                     (<= start (get info :END (dec (+ pos (count ref))))))))))
      spans)))
 
-(defn read-file-offsets [^VCFReader rdr]
+(defn read-file-offsets
   "Reading bgzip compressed VCF and returning position,chrom,beg,end."
-  (let [^BGZFInputStream input-stream (.reader rdr)]
+  [^VCFReader rdr]
+  (let [^BGZFInputStream input-stream (.reader rdr)
+        meta-info-contigs (->> (:contig (.meta-info rdr))
+                               (map-indexed (fn [index contig]
+                                              [(:id contig) index]))
+                               (into {}))
+        parse-fn (vcf-util/variant-parser (.meta-info rdr) (.header rdr))]
     (loop [file-ptr' 0
-           res '()]
+           data-contigs {}
+           res (transient [])]
       (if-let [line (.readLine input-stream)]
         (if (or (meta-line? line) (header-line? line))
-          (recur (.getFilePointer input-stream) res)
+          (recur (.getFilePointer input-stream) data-contigs res)
           (let [file-ptr (.getFilePointer input-stream)
-                fields (->> (.split ^String line "\t")
-                            LazilyPersistentVector/createOwning
-                            (map dot->nil)
-                            (take 4))
-                beg (as-long (nth fields 1))
-                end (+ (as-long (nth fields 1)) (count (nth fields 3)))
-                chr (first fields)]
+                parsed-line (parse-fn (parse-data-line line nil))]
             (recur file-ptr
-                   (cons {:file-beg file-ptr'
-                          :file-end file-ptr
-                          :beg beg
-                          :end end
-                          :chr chr}
-                         res))))
-        (reverse res)))))
+                   (if (contains? data-contigs (:chr parsed-line))
+                     data-contigs
+                     (assoc data-contigs (:chr parsed-line) (count data-contigs)))
+                   (conj!  res
+                           {:file-beg file-ptr'
+                            :file-end file-ptr
+                            :beg (:pos parsed-line)
+                            :end (+ (:pos parsed-line)
+                                    (count (:ref parsed-line)))
+                            :chr (:chr parsed-line)}))))
+        (let [contigs (if (< (count meta-info-contigs) (count data-contigs))
+                        data-contigs
+                        meta-info-contigs)]
+          (map #(assoc % :chr (get contigs (:chr %)))
+               (persistent! res)))))))

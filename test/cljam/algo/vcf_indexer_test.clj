@@ -13,11 +13,12 @@
 (def tmp-vcf-file (str temp-dir "/tmp.vcf.gz"))
 (def tmp-vcf-csi-file (str temp-dir "/tmp.vcf.gz.csi"))
 
-(defn- chunks->maps [chunks]
-  (into {}
-        (for [[chr bin-chunks] chunks
-              [bin chunks] bin-chunks]
-          [chr {bin (mapv #(into {} %) chunks)}])))
+(defn- chunks->maps [bidx]
+  (apply merge-with into
+         (for [[chr bin-chunks] bidx
+               [bin chunks] bin-chunks
+               chunk chunks]
+           {chr {bin (mapv #(into {} %) chunks)}})))
 
 (deftest about-vcf-indexer
   (with-before-after {:before (prepare-cache!)
@@ -76,6 +77,40 @@
                   1 {4681 [{:beg 3973, :end 4031}]},
                   2 {5118 [{:beg 4031, :end 4783}]},
                   3 {4681 [{:beg 4783, :end 106168320}]}}))))))
+
+(deftest about-vcf-changed-chr-order
+  (with-before-after {:before (prepare-cache!)
+                      :after (clean-cache!)}
+    (do (vcf-indexer/create-index test-vcf-changed-chr-order-file
+                                  tmp-csi-file {:shift 18 :depth 5})
+        (let [csi ^CSI (csi/read-index tmp-csi-file)]
+          (is (= (chunks->maps (.bidx csi))
+                 {0 {4681 [{:beg 2096, :end 2205}]},
+                  1 {4681 [{:beg 1647, :end 1811}],
+                     4685 [{:beg 1811, :end 2096}]},
+                  2 {4681 [{:beg 2205, :end 70975488}]}}))
+
+          (is (= (.loffset csi)
+                 {0 {1 2096},
+                  1 {1 1647, 1048577 1811},
+                  2 {1 2205}}))))))
+
+(deftest about-vcf-changed-chr-order-field-less
+  (with-before-after {:before (prepare-cache!)
+                      :after (clean-cache!)}
+    (do (vcf-indexer/create-index test-vcf-changed-chr-order-field-less-file
+                                  tmp-csi-file {:shift 18 :depth 5})
+        (let [csi ^CSI (csi/read-index tmp-csi-file)]
+          (is (= (chunks->maps (.bidx csi))
+                 {0 {4681 [{:beg 1597, :end 1761}],
+                     4685 [{:beg 1761, :end 2046}]},
+                  1 {4681 [{:beg 2046, :end 2155}]},
+                  2 {4681 [{:beg 2155, :end 70057984}]}}))
+
+          (is (= (.loffset csi)
+                 {0 {1 1597, 1048577 1761},
+                  1 {1 2046},
+                  2 {1 2155}}))))))
 
 (deftest about-vcf-indexer-input-result
   (with-before-after {:before (prepare-cache!)

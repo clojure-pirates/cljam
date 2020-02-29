@@ -214,6 +214,8 @@
 (def test-vcf-various-bins-gz-file "test-resources/vcf/various-bins.vcf.gz")
 (def test-vcf-various-bins-tbi-file "test-resources/vcf/various-bins.vcf.gz.tbi")
 (def test-vcf-various-bins-csi-file "test-resources/vcf/various-bins.vcf.gz.csi")
+(def test-vcf-changed-chr-order-file "test-resources/vcf/test-changed-chr-order.vcf.gz")
+(def test-vcf-changed-chr-order-field-less-file "test-resources/vcf/test-changed-chr-order-field-less.vcf.gz")
 
 (def test-large-vcf-file (cavia/resource mycavia "large.vcf.gz"))
 (def test-large-vcf-tbi-file (cavia/resource mycavia "large.vcf.gz.tbi"))

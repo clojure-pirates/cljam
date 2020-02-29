@@ -80,6 +80,55 @@
   (with-open [r (DataInputStream. (bgzf/bgzf-input-stream f))]
     (read-index* r)))
 
+(defn- calc-bidx [file-offsets shift depth]
+  (->> file-offsets
+       (map #(assoc %
+                    :bin (util-bin/reg->bin (:beg %)
+                                            (:end %) shift depth)))
+       (reduce (fn [res offset]
+                 (if (and (= (:bin (first res)) (:bin offset))
+                          (= (:file-end (first res)) (:file-beg offset)))
+                   (cons (assoc (first res) :file-end (:file-end offset))
+                         (next res))
+                   (cons offset res)))
+               nil)
+       (group-by :bin)
+       (map (fn [[bin offsets]]
+              [bin (->> offsets
+                        (map #(chunk/->Chunk (:file-beg %) (:file-end %)))
+                        reverse)]))
+       sort
+       (into (array-map))))
+
+(defn- calc-loffsets [begs file-offsets]
+  (->> begs
+       (map (fn [beg]
+              [beg (->> (drop-while #(< (:end %) beg) file-offsets)
+                        (map :file-beg)
+                        first)]))
+       (into (array-map))))
+
+(defn offsets->index
+  "Calculates loffsets and bidx
+   from offsets {:file-beg :file-end :beg :end :chr }"
+  [offsets shift depth]
+  (let [chr-offsets (->> (partition-by :chr offsets)
+                         (map #(vector (:chr (first %)) %))
+                         sort
+                         (into (array-map)))
+        bidx (->> chr-offsets
+                  (map (fn [[chr offsets]]
+                         [chr (calc-bidx offsets shift depth)]))
+                  (into (array-map)))
+        loffsets (->> chr-offsets
+                      (map (fn [[chr offsets]]
+                             [chr (calc-loffsets
+                                   (map #(util-bin/bin-beg % shift depth)
+                                        (keys (get bidx chr)))
+                                   offsets)]))
+                      (into (array-map)))]
+    [bidx loffsets]))
+
 (defn write-index
   [f ^CSI csi]
   (with-open [w (DataOutputStream. (bgzf/bgzf-output-stream f))]
