@@ -61,7 +61,6 @@
     (->> (util-chunk/optimize-chunks chunks min-offset)
          (map vals))))
 
-
 (defn leading-bins-at-level
   ^long [^long pos ^long level ^long min-shift ^long depth]
   (unsigned-bit-shift-right pos (+ min-shift (* (- depth level) 3))))

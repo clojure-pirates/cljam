@@ -16,8 +16,7 @@
 (defn- chunks->maps [bidx]
   (apply merge-with into
          (for [[chr bin-chunks] bidx
-               [bin chunks] bin-chunks
-               chunk chunks]
+               [bin chunks] bin-chunks]
            {chr {bin (mapv #(into {} %) chunks)}})))
 
 (deftest about-vcf-indexer
