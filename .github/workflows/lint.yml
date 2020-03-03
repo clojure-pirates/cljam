@@ -1,0 +1,34 @@
+name: lint
+
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v1
+    - name: Setup Java
+      uses: actions/setup-java@v1
+      with:
+        java-version: '11'
+        architecture: x64
+    - name: Cache m2 repository
+      uses: actions/cache@v1
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/project.clj') }}
+        restore-keys: |
+          ${{ runner.os }}-m2-
+    - name: Install dependencies
+      run: lein deps
+    - name: Run eastwood
+      run: lein update-in :global-vars dissoc '*warn-on-reflection*' -- eastwood
+      continue-on-error: true
+    - name: Run kibit
+      run: lein kibit
+      continue-on-error: true
+    - name: clj-kondo checks
+      uses: DeLaGuardo/clojure-lint-action@d7b09ac841e4a1fcaa2912dbb7c33704d9edca4c
+      continue-on-error: true
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}

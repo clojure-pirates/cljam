@@ -23,7 +23,9 @@
                              [lein-marginalia "0.9.1" :exclusions [org.clojure/clojure]]
                              [lein-cloverage "1.1.2"]
                              [net.totakke/lein-libra "0.1.2"]
-                             [lein-cljfmt "0.6.6"]]
+                             [lein-cljfmt "0.6.6"]
+                             [jonase/eastwood "0.3.7"]
+                             [lein-kibit "0.1.8"]]
                    :test-selectors {:default #(not-any? % [:slow :remote])
                                     :slow :slow ; Slow tests with local resources
                                     :remote :remote ; Tests with remote resources
@@ -51,4 +53,28 @@
           :output-path "target/docs"
           :source-uri "https://github.com/chrovis/cljam/blob/{version}/{filepath}#L{line}"}
   :repl-options {:init-ns user}
-  :signing {:gpg-key "developer@xcoo.jp"})
+  :signing {:gpg-key "developer@xcoo.jp"}
+  :eastwood {:add-linters [:bad-arglists
+                           :constant-test
+                           :def-in-def
+                           :deprecations
+                           :keyword-typos
+                           :local-shadows-var
+                           :misplaced-docstrings
+                           :no-ns-form-found
+                           :non-clojure-file
+                           :redefd-vars
+                           :suspicious-expression
+                           :suspicious-test
+                           :unlimited-use
+                           :unused-fn-args
+                           :unused-locals
+                           :unused-meta-on-macro
+                           :unused-namespaces
+                           :unused-private-vars
+                           :unused-ret-vals
+                           :unused-ret-vals-in-try
+                           :wrong-arity
+                           :wrong-ns-form
+                           :wrong-pre-post
+                           :wrong-tag]})
