@@ -3,7 +3,7 @@
   (:refer-clojure :exclude [read indexed?]))
 
 (defrecord SAMAlignment
-  [qname ^int flag rname ^int pos ^int end ^int mapq cigar rnext ^int pnext ^int tlen seq qual options])
+           [qname ^int flag rname ^int pos ^int end ^int mapq cigar rnext ^int pnext ^int tlen seq qual options])
 (defrecord SAMRegionBlock [data ^int ref-id ^int pos ^int end])
 (defrecord SAMCoordinateBlock [data ^int ref-id ^int pos ^int flag])
 (defrecord SAMQuerynameBlock [data qname ^int flag])
