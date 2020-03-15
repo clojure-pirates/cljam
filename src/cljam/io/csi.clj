@@ -98,15 +98,44 @@
                         (map #(chunk/->Chunk (:file-beg %) (:file-end %)))
                         reverse)]))
        sort
-       (into (array-map))))
+       (into (sorted-map))))
 
-(defn- calc-loffsets [begs file-offsets]
-  (->> begs
-       (map (fn [beg]
-              [beg (->> (drop-while #(< (:end %) beg) file-offsets)
-                        (map :file-beg)
-                        first)]))
-       (into (array-map))))
+(defn- fill-in-file-offsets [file-offsets shift]
+  (let [indexed-offsets
+        (->> file-offsets
+             (map-indexed  #(assoc %2
+                                   :index %1
+                                   :beg (-> (:beg %2)
+                                            (bit-shift-right shift)
+                                            (bit-shift-left shift))))
+             (into []))]
+    (letfn [(step [index last-end]
+              (when-let [offset (and (< index (count indexed-offsets))
+                                     (nth indexed-offsets index))]
+                (if-let [next-index (->> (drop (+ index 1) indexed-offsets)
+                                         (drop-while #(< (:end %)
+                                                         (:end offset)))
+                                         first
+                                         :index)]
+                  (let [next-offset (nth indexed-offsets next-index)
+                        end (if (< (:beg next-offset) (:end offset))
+                              (:end offset)
+                              (:beg next-offset))]
+                    (lazy-seq (cons (assoc offset
+                                           :end end
+                                           :beg last-end)
+                                    (step next-index end))))
+                  (list offset))))]
+      (step 0 0))))
+
+(defn- calc-loffsets [begs file-offsets shift]
+  (let [offsets (fill-in-file-offsets file-offsets shift)]
+    (->> begs
+         (map (fn [beg]
+                [beg
+                 (:file-beg
+                  (first (drop-while #(< (:end %) beg) offsets)))]))
+         (into (sorted-map)))))
 
 (defn offsets->index
   "Calculates loffsets and bidx
@@ -115,19 +144,20 @@
   (let [chr-offsets (->> (partition-by :chr offsets)
                          (map #(vector (:chr (first %)) %))
                          sort
-                         (into (array-map)))
+                         (into (sorted-map)))
         bidx (->> chr-offsets
                   (map (fn [[chr offsets]]
                          [chr (calc-bidx offsets shift depth)]))
-                  (into (array-map)))
+                  (into (sorted-map)))
         loffsets (->> chr-offsets
                       (map (fn [[chr offsets]]
                              [chr (calc-loffsets
                                    (map #(util-bin/bin-beg % shift depth)
                                         (keys (get bidx chr)))
-                                   offsets)]))
-                      (into (array-map)))]
-    [bidx loffsets]))
+                                   offsets
+                                   shift)]))
+                      (into (sorted-map)))]
+    (->CSI (count bidx) shift depth bidx loffsets)))
 
 (defn write-index
   [f ^CSI csi]

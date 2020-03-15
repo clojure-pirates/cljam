@@ -136,3 +136,27 @@
       "chr1" 1048577 414826497
       "chr1" 32769 414859265
       "chr1" 414859265 536608769)))
+
+(deftest csi-comparison-test
+  (let [csi ^CSI (csi/read-index test-vcf-various-bins-csi-file)
+        computed (with-open [r (vcf/reader test-vcf-various-bins-gz-file)]
+                   (csi/offsets->index (vcf/read-file-offsets r) 14 6))]
+    (is (= (.n-ref csi) (.n-ref ^CSI computed)))
+    (is (= (.min-shift csi) (.min-shift ^CSI computed)))
+    (is (= (.depth csi) (.depth ^CSI computed)))
+    ;;Exclude tail data
+    ;;due to differences in implementation of HTSlib and bgzf4j.
+    (is (= (dissoc (get (.bidx csi) 0) 75)
+           (dissoc (get (.bidx ^CSI computed) 0) 75)))
+    (is (= (.loffset csi) (.loffset ^CSI computed)))))
+
+(deftest-remote large-csi-comparison-test
+  (with-before-after {:before (prepare-cavia!)}
+    (let [csi ^CSI (csi/read-index test-large-vcf-csi-file)
+          computed (with-open [r (vcf/reader test-large-vcf-file)]
+                     (csi/offsets->index (vcf/read-file-offsets r) 14 6))]
+      (is (= (.n-ref csi) (.n-ref ^CSI computed)))
+      (is (= (.min-shift csi) (.min-shift ^CSI computed)))
+      (is (= (.depth csi) (.depth ^CSI computed)))
+      (is (= (.bidx csi) (.bidx ^CSI computed)))
+      (is (= (.loffset csi) (.loffset ^CSI computed))))))

@@ -234,28 +234,20 @@
                                (map-indexed (fn [index contig]
                                               [(:id contig) index]))
                                (into {}))
-        parse-fn (vcf-util/variant-parser (.meta-info rdr) (.header rdr))]
-    (loop [file-ptr' 0
-           data-contigs {}
-           res (transient [])]
-      (if-let [line (.readLine input-stream)]
-        (if (or (meta-line? line) (header-line? line))
-          (recur (.getFilePointer input-stream) data-contigs res)
-          (let [file-ptr (.getFilePointer input-stream)
-                parsed-line (parse-fn (parse-data-line line nil))]
-            (recur file-ptr
-                   (if (contains? data-contigs (:chr parsed-line))
-                     data-contigs
-                     (assoc data-contigs (:chr parsed-line) (count data-contigs)))
-                   (conj!  res
-                           {:file-beg file-ptr'
-                            :file-end file-ptr
-                            :beg (:pos parsed-line)
-                            :end (+ (:pos parsed-line)
-                                    (count (:ref parsed-line)))
-                            :chr (:chr parsed-line)}))))
-        (let [contigs (if (< (count meta-info-contigs) (count data-contigs))
-                        data-contigs
-                        meta-info-contigs)]
-          (map #(assoc % :chr (get contigs (:chr %)))
-               (persistent! res)))))))
+        kws (mapv keyword (drop 8 (.header rdr)))
+        parse (comp (vcf-util/variant-parser (.meta-info rdr) (.header rdr))
+                    #(parse-data-line % kws))]
+    (letfn [(step [contigs beg-pointer]
+              (when-let [line (.readLine input-stream)]
+                (let [end-pointer (.getFilePointer input-stream)]
+                  (if (or (meta-line? line) (header-line? line))
+                    (lazy-seq (step contigs end-pointer))
+                    (let [{:keys [chr pos ref info]} (parse line)
+                          contigs' (if (contains? contigs chr)
+                                     contigs
+                                     (assoc contigs chr (count contigs)))]
+                      (cons {:file-beg beg-pointer, :file-end end-pointer
+                             :chr (contigs' chr), :beg pos,
+                             :end (or (:END info) (dec (+ pos (count ref))))}
+                            (lazy-seq (step contigs' end-pointer))))))))]
+      (step meta-info-contigs 0))))

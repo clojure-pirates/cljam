@@ -8,6 +8,5 @@
   [in-bgziped-vcf out-csi {:keys [shift depth] :or {shift 14 depth 5}}]
   (with-open [r (vcf/reader in-bgziped-vcf)]
     (let [offsets (vcf/read-file-offsets r)
-          [bidx loffset] (csi/offsets->index offsets shift depth)
-          csi (csi/->CSI (count bidx) shift depth bidx loffset)]
+          csi (csi/offsets->index offsets shift depth)]
       (csi/write-index out-csi csi))))
